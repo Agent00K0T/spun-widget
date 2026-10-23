@@ -1,0 +1,19 @@
+{
+  "settings.color.default": "Стандартный",
+  "settings.color.system": "Цвета системы",
+  "settings.color.cover": "Цвета обложки",
+  "settings.record_color.label": "Цвет пластинки",
+  "settings.record_color.description": "Стандартный — чёрный винил.",
+  "settings.chapter_color.label": "Цвет колец глав",
+  "settings.chapter_color.description": "Кольца на пластинке там, где начинаются главы видео YouTube.",
+  "settings.progress_color.label": "Цвет кольца прогресса",
+  "settings.progress_color.description": "Кольцо по краю пластинки, показывающее, сколько уже сыграно.",
+  "settings.chapters.label": "Главы YouTube",
+  "settings.chapters.description": "Кольца глав на пластинке и прилипание иглы к ним. Если выключить, проигрыватель не обращается к YouTube.",
+  "settings.player.label": "Только плеер",
+  "settings.player.description": "Часть имени плеера, например firefox или vlc. Пусто — любой активный плеер.",
+  "settings.swap_animation.label": "Анимация смены пластинки",
+  "settings.swap_animation.description": "Старая пластинка уезжает, новая въезжает, когда меняется альбом или видео.",
+  "settings.player_color.label": "Цвет проигрывателя",
+  "settings.player_color.description": "Корпус проигрывателя, основание и подставка иглы."
+}

@@ -1,0 +1,11 @@
+# Noctalia plugin source: noctalia msg plugins source add spun-widget git https://github.com/Agent00K0T/spun-widget
+[[plugin]]
+id          = "agent00k0t/spun-widget"
+name        = "Spun Widget"
+version     = "1.0.0"
+author      = "Agent00K0T"
+license     = "PolyForm-Noncommercial-1.0.0"
+icon        = "vinyl"
+description = "A vinyl turntable on the desktop that shows and controls the playing music (any MPRIS player), with YouTube chapters as rings on the record. Needs the spun-widget program from this repository."
+plugin_api  = 3
+tags        = ["media", "music", "desktop-widget"]

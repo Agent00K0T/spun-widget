@@ -1,0 +1,19 @@
+{
+  "settings.color.default": "Default",
+  "settings.color.system": "System colors",
+  "settings.color.cover": "Cover colors",
+  "settings.record_color.label": "Record color",
+  "settings.record_color.description": "Default is black vinyl.",
+  "settings.chapter_color.label": "Chapter ring color",
+  "settings.chapter_color.description": "Rings on the record where the chapters of a YouTube video start.",
+  "settings.progress_color.label": "Progress ring color",
+  "settings.progress_color.description": "The ring around the record that shows how much has played.",
+  "settings.chapters.label": "YouTube chapters",
+  "settings.chapters.description": "Chapter rings on the record and needle snapping to them. When off, the player never contacts YouTube.",
+  "settings.player.label": "Only player",
+  "settings.player.description": "Part of the player's name, such as firefox or vlc. Empty means any active player.",
+  "settings.swap_animation.label": "Record swap animation",
+  "settings.swap_animation.description": "The old record slides out and the new one slides in when the album or video changes.",
+  "settings.player_color.label": "Player color",
+  "settings.player_color.description": "The turntable's body, the arm base and rest."
+}

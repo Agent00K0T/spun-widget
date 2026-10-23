@@ -1,0 +1,84 @@
+# Spun Widget: the frame of the turntable widget. The player itself is the separate spun-widget
+# program (built from this repository); it reads this widget's position, size and settings.
+id          = "agent00k0t/spun-widget"
+name        = "Spun Widget"
+version     = "1.0.0"
+plugin_api  = 3
+author      = "Agent00K0T"
+license     = "PolyForm-Noncommercial-1.0.0"
+icon        = "vinyl"
+description = "A vinyl turntable on the desktop that shows and controls the playing music (any MPRIS player), with YouTube chapters as rings on the record. Needs the spun-widget program from the plugin's repository."
+
+[[desktop_widget]]
+id    = "spun"
+entry = "anchor.luau"
+
+  # Colours: default = the player's own colours, system = the Noctalia theme, cover = the track's cover
+  [[desktop_widget.setting]]
+  key       = "player_color"
+  type      = "select"
+  label_key = "settings.player_color.label"
+  description_key = "settings.player_color.description"
+  default   = "system"
+  options   = [
+    { value = "default", label_key = "settings.color.default" },
+    { value = "system",  label_key = "settings.color.system" },
+  ]
+
+  [[desktop_widget.setting]]
+  key       = "record_color"
+  type      = "select"
+  label_key = "settings.record_color.label"
+  description_key = "settings.record_color.description"
+  default   = "cover"
+  options   = [
+    { value = "default", label_key = "settings.color.default" },
+    { value = "system",  label_key = "settings.color.system" },
+    { value = "cover",   label_key = "settings.color.cover" },
+  ]
+
+  [[desktop_widget.setting]]
+  key       = "chapter_color"
+  type      = "select"
+  label_key = "settings.chapter_color.label"
+  description_key = "settings.chapter_color.description"
+  default   = "cover"
+  visible_when = { key = "chapters", values = ["true"] }
+  options   = [
+    { value = "default", label_key = "settings.color.default" },
+    { value = "system",  label_key = "settings.color.system" },
+    { value = "cover",   label_key = "settings.color.cover" },
+  ]
+
+  [[desktop_widget.setting]]
+  key       = "progress_color"
+  type      = "select"
+  label_key = "settings.progress_color.label"
+  description_key = "settings.progress_color.description"
+  default   = "system"
+  options   = [
+    { value = "default", label_key = "settings.color.default" },
+    { value = "system",  label_key = "settings.color.system" },
+    { value = "cover",   label_key = "settings.color.cover" },
+  ]
+
+  [[desktop_widget.setting]]
+  key       = "chapters"
+  type      = "bool"
+  label_key = "settings.chapters.label"
+  description_key = "settings.chapters.description"
+  default   = true
+
+  [[desktop_widget.setting]]
+  key       = "player"
+  type      = "string"
+  label_key = "settings.player.label"
+  description_key = "settings.player.description"
+  default   = ""
+
+  [[desktop_widget.setting]]
+  key       = "swap_animation"
+  type      = "bool"
+  label_key = "settings.swap_animation.label"
+  description_key = "settings.swap_animation.description"
+  default   = true
