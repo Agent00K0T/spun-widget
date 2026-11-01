@@ -4,11 +4,16 @@
 -- Noctalia saves widget settings to its file only when the settings menu closes, but it rebuilds
 -- this script on every setting change, so the top level runs again with the new values: it hands
 -- them to the program at once through <pluginDataDir>/settings.json.
-local keys = { "player_color", "record_color", "chapter_color", "progress_color", "chapters", "player", "swap_animation" }
+local keys = { "player_color", "record_color", "chapter_color", "progress_color", "chapters", "players", "ignored_players", "swap_animation" }
 
 local function encode(value)
   if type(value) == "boolean" then return value and "true" or "false" end
   if type(value) == "number" then return tostring(value) end
+  if type(value) == "table" then
+    local items = {}
+    for _, item in ipairs(value) do table.insert(items, encode(item)) end
+    return "[" .. table.concat(items, ",") .. "]"
+  end
   return '"' .. tostring(value):gsub('\\', '\\\\'):gsub('"', '\\"') .. '"'
 end
 
@@ -25,6 +30,24 @@ end
 
 publish()
 
+-- While Noctalia's widget editor is open this frame shows a snapshot of the player (which stays
+-- under the editor, or hides once the frame is moved away), so it moves and resizes with the frame like the built-in widgets. The program names the
+-- current snapshot in <pluginDataDir>/preview.txt (read here when the script is rebuilt, e.g. after
+-- a setting change) and sends a new one with the "preview" IPC event; an empty path = no snapshot.
+local preview = (noctalia.readFile(noctalia.pluginDataDir() .. "/preview.txt") or ""):match("^%s*(.-)%s*$")
+
 function update()
-  desktopWidget.render(ui.column({ flexGrow = 1 }, {}))
+  if preview ~= "" then
+    -- 440 = the housing in the player's own units; Noctalia fits it into the frame
+    desktopWidget.render(ui.image({ path = preview, width = 440, height = 440, fit = "contain" }))
+  else
+    desktopWidget.render(ui.column({ flexGrow = 1 }, {}))
+  end
+end
+
+function onIpc(event, payload)
+  if event == "preview" then
+    preview = payload or ""
+    update()
+  end
 end

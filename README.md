@@ -21,7 +21,7 @@ a progress ring around the record, and records that swap when the album or video
   - drop it on the lead-in at the record's edge to play from the start;
   - drop it on the label for the next track;
   - drop it off the record to pause: it stays where you left it.
-- **The rim of the record** is a seek ring; scroll over the record to change the volume.
+- **The rim of the record** is a seek ring.
 - **YouTube chapters** appear as rings on the record, the playing one lit. Chapters of the next
   video are fetched shortly before the current one ends, so its record arrives with its rings.
 - **Colours**: the record, the chapter rings and the progress ring can each take the default
@@ -87,7 +87,8 @@ In Noctalia's widget editor, open the settings of the Spun Widget:
 | Chapter ring color | Default, System colors, Cover colors |
 | Progress ring color | Default, System colors, Cover colors |
 | YouTube chapters | on / off — when off, the widget never contacts YouTube |
-| Only player | part of a player's name (`firefox`, `vlc`…); empty for any |
+| Only players | parts of player names (`firefox`, `vlc`…, as `playerctl -l` lists them); empty for any |
+| Ignored players | players never shown, even when they match Only players |
 | Record swap animation | on / off |
 
 Changes apply at once.

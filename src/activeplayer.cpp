@@ -1,5 +1,6 @@
 #include "activeplayer.h"
 #include "palette.h"
+#include <algorithm>
 #include <QFileInfo>
 #include <QDir>
 #include <QCoreApplication>
@@ -42,6 +43,12 @@ static QString videoKey(const QString &pageUrl) {
     return id.isEmpty() ? pageUrl : "youtube:" + id;
 }
 
+QString ActivePlayer::albumId() const {
+    const auto list = QUrlQuery(QUrl(m_pageUrl)).queryItemValue("list");
+    if (list.startsWith("OLAK5uy_") && videoKey(m_pageUrl).startsWith("youtube:")) return "youtube-album:"+list;
+    return m_album.isEmpty() ? QString{} : m_album+"|"+artKey();
+}
+
 // YouTube plays muted previews of the videos under the pointer on its home, search and channel
 // pages; Firefox reports them as playback of that page. Only a page of one video is a track.
 static bool youtubePreview(const QString &pageUrl) {
@@ -57,12 +64,16 @@ ActivePlayer::ActivePlayer(QObject *parent) : QObject(parent) {
     connect(&m_commands, &QTimer::timeout, this, &ActivePlayer::flushCommands);
     m_tick.setInterval(200);
     connect(&m_tick, &QTimer::timeout, this, [this] { if (m_playing) { emit positionChanged(); prefetchNext(); } });
-    m_poll.setInterval(2000);
-    connect(&m_poll, &QTimer::timeout, this, [this] { if (!m_service.isEmpty()) refresh(); });
-    m_poll.start();
-    m_playerScan.setInterval(1000);
-    connect(&m_playerScan, &QTimer::timeout, this, &ActivePlayer::scanPlayers);
-    m_playerScan.start();
+    // No polling: players are rescanned when one appears or goes away (NameOwnerChanged) and
+    // when any of them starts or stops playing or changes its track (PropertiesChanged); the
+    // followed player reports its changes itself (propertiesChanged, seeked)
+    m_rescan.setSingleShot(true);
+    m_rescan.setInterval(100);
+    connect(&m_rescan, &QTimer::timeout, this, &ActivePlayer::scanPlayers);
+    auto bus = QDBusConnection::sessionBus();
+    bus.connect("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "NameOwnerChanged",
+                this, SLOT(nameOwnerChanged(QString,QString,QString)));
+    bus.connect(QString(), path, props, "PropertiesChanged", this, SLOT(anyPlayerChanged(QDBusMessage)));
     scanPlayers();
 }
 ActivePlayer::~ActivePlayer() { if (m_artDecodeActive) m_artLoader.waitForFinished(); }
@@ -73,11 +84,31 @@ void ActivePlayer::setChaptersEnabled(bool enabled) {
     emit chaptersEnabledChanged();
     if (!m_pageUrl.isEmpty()) fetchChapters();
 }
-void ActivePlayer::setPlayerFilter(const QString &filter) {
-    if (filter.trimmed() == m_playerFilter) return;
-    m_playerFilter = filter.trimmed();
+// Trimmed, without empty entries
+static QStringList cleanNames(const QStringList &names) {
+    QStringList clean;
+    for (const auto &name : names) if (!name.trimmed().isEmpty()) clean.append(name.trimmed());
+    return clean;
+}
+void ActivePlayer::setOnlyPlayers(const QStringList &players) {
+    if (cleanNames(players) == m_onlyPlayers) return;
+    m_onlyPlayers = cleanNames(players);
     emit playerFilterChanged();
     scanPlayers();
+}
+void ActivePlayer::setIgnoredPlayers(const QStringList &players) {
+    if (cleanNames(players) == m_ignoredPlayers) return;
+    m_ignoredPlayers = cleanNames(players);
+    emit playerFilterChanged();
+    scanPlayers();
+}
+// Matched against the name after "org.mpris.MediaPlayer2." (what playerctl -l shows)
+bool ActivePlayer::playerAllowed(const QString &service) const {
+    const QString name = service.mid(23);
+    const auto matches = [&](const QStringList &parts) {
+        return std::any_of(parts.cbegin(), parts.cend(), [&](const QString &part) { return name.contains(part, Qt::CaseInsensitive); });
+    };
+    return (m_onlyPlayers.isEmpty() || matches(m_onlyPlayers)) && !matches(m_ignoredPlayers);
 }
 // Like Noctalia's media widget: prefer a playing player (keeping the current one if it
 // still plays), otherwise stay on the current player, otherwise take the first one.
@@ -86,8 +117,7 @@ void ActivePlayer::scanPlayers() {
     if (!bus.interface()) return;
     QStringList players;
     for (const auto &name : bus.interface()->registeredServiceNames().value())
-        if (name.startsWith("org.mpris.MediaPlayer2.") && name != "org.mpris.MediaPlayer2.playerctld"
-            && (m_playerFilter.isEmpty() || name.mid(23).contains(m_playerFilter, Qt::CaseInsensitive)))
+        if (name.startsWith("org.mpris.MediaPlayer2.") && name != "org.mpris.MediaPlayer2.playerctld" && playerAllowed(name))
             players.append(name);
     players.sort();
     QString playing;
@@ -103,7 +133,9 @@ void ActivePlayer::scanPlayers() {
         if (name == m_service || playing.isEmpty()) playing = name;
     }
     const QString next = !playing.isEmpty() ? playing : players.contains(m_service) ? m_service : players.value(0);
-    if (next != m_service) bindPlayer(next);
+    // Firefox registers its player name anew when a page with media is opened in the tab: the same
+    // name with another owner is a new player whose state must be read again
+    if (next != m_service || (!next.isEmpty() && bus.interface()->serviceOwner(next).value() != m_serviceOwner)) bindPlayer(next);
 }
 void ActivePlayer::bindPlayer(const QString &name) {
     auto bus = QDBusConnection::sessionBus();
@@ -112,6 +144,7 @@ void ActivePlayer::bindPlayer(const QString &name) {
         bus.disconnect(m_service, path, iface, "Seeked", this, SLOT(seeked(qlonglong)));
     }
     m_service = name;
+    m_serviceOwner = name.isEmpty() ? QString() : bus.interface()->serviceOwner(name).value();
     m_refreshing = false;
     clearPlayback();
     if (m_service.isEmpty()) return;
@@ -185,7 +218,11 @@ void ActivePlayer::apply(const QVariantMap &v) {
         // A browser reports a new video's length only a second after switching to it; remember it,
         // so returning to the video shows its chapter rings with the record already
         if (m_duration > 0 && !m_pageKey.isEmpty()) m_durationCache.insert(m_pageKey, m_duration);
-        const auto url = QUrl(unwrap(meta.value("mpris:artUrl")).toString());
+        auto url = QUrl(unwrap(meta.value("mpris:artUrl")).toString());
+        // Firefox sometimes reports a YouTube video without a cover: its thumbnail stands in
+        // (16:9 without black bars; only with chapters on, which allow requests to YouTube)
+        if (const auto key = videoKey(pageUrl); url.isEmpty() && m_chaptersEnabled && key.startsWith("youtube:"))
+            url = QUrl("https://i.ytimg.com/vi/" + key.mid(8) + "/mqdefault.jpg");
         if (identityChanged || url != m_artUrl) { m_artUrl = url; loadArt(url); }
     }
     if (v.contains("PlaybackStatus")) {
@@ -219,8 +256,26 @@ void ActivePlayer::apply(const QVariantMap &v) {
 void ActivePlayer::propertiesChanged(const QString &interface, const QVariantMap &values, const QStringList &invalidated) {
     if (interface != iface) return;
     if (values.contains("Metadata") || invalidated.contains("Metadata")) ++m_metadataRevision;
+    const auto track = trackKey();
     apply(values);
-    if (!invalidated.isEmpty()) refresh();
+    // Position isn't signalled: take it from the player when playback starts, pauses or the track
+    // changes (players repeat unchanged Metadata, that needs nothing). A player marked unavailable
+    // that signals is back: Firefox re-registers its name when a page with media opens, and a read
+    // in between fails.
+    if (!m_available || !invalidated.isEmpty() || values.contains("PlaybackStatus") || trackKey() != track) refresh();
+}
+void ActivePlayer::nameOwnerChanged(const QString &name, const QString &, const QString &) {
+    if (name.startsWith("org.mpris.MediaPlayer2.")) m_rescan.start();
+}
+void ActivePlayer::anyPlayerChanged(const QDBusMessage &message) {
+    const auto args = message.arguments();
+    if (args.value(0).toString() != iface) return;
+    const auto changed = asMap(args.value(1));
+    // The followed player's own track changes come through propertiesChanged; only its
+    // starting or stopping playback may hand the widget over to another player
+    const bool followed = !m_serviceOwner.isEmpty() && message.service() == m_serviceOwner;
+    if (changed.contains("PlaybackStatus") || (!followed && changed.contains("Metadata")) || !args.value(2).toStringList().isEmpty())
+        m_rescan.start();
 }
 void ActivePlayer::seeked(qlonglong value) {
     if (m_preview) return;
@@ -240,7 +295,7 @@ void ActivePlayer::seek(qint64 ms) {
     const auto track = m_track;
     schedule("seek", [this, track, position] {
         if (track != m_track) return;
-        // Show the new position right away; the player confirms it on the next poll
+        // Show the new position right away; the player confirms it after the call (refresh)
         m_position = position; m_clock.restart(); emit positionChanged();
         call("SetPosition", {QVariant::fromValue(QDBusObjectPath(track)), QVariant::fromValue(position*1000)});
     });
@@ -354,7 +409,21 @@ void ActivePlayer::applyPageDuration() {
 void ActivePlayer::loadArt(const QUrl &url) {
     ++m_artGeneration; m_pendingArtBytes.clear(); m_pendingArtFile.clear();
     if (m_artReply) { auto *previous = m_artReply.data(); m_artReply = nullptr; previous->abort(); previous->deleteLater(); }
-    m_art = {}; emit artworkChanged();
+    // Browsers give every track of an album its own cover file: within the album the record keeps
+    // its cover until the new one is decoded (and if that fails, e.g. the browser has already
+    // deleted the file); another album starts without a cover
+    const bool sameAlbum = !m_art.isNull() && albumKey() == m_artAlbum;
+    if (url.isEmpty() && sameAlbum) {
+        // Browsers report the next track a moment before its cover: the record stays as it is for
+        // a second, and turns grey only if no cover follows
+        const auto generation = m_artGeneration;
+        QTimer::singleShot(1000, this, [this, generation] {
+            if (generation != m_artGeneration) return;
+            m_art = {}; m_artAlbum.clear(); emit artworkChanged(); setRingColors({});
+        });
+        return;
+    }
+    if (!sameAlbum) { m_art = {}; emit artworkChanged(); }
     // Until the new cover is decoded the rings keep the previous colours; without a cover they are grey
     if (url.isEmpty()) setRingColors({});
     if (url.isLocalFile()) { m_pendingArtFile = url.toLocalFile(); decodeArt(); return; }
@@ -384,8 +453,9 @@ void ActivePlayer::decodeArt() {
     m_artLoader.disconnect(this);
     connect(&m_artLoader, &QFutureWatcherBase::finished, this, [this, generation] {
         m_artDecodeActive = false;
-        if (generation == m_artGeneration) {
-            m_art = m_artLoader.result();
+        const auto image = m_artLoader.result();
+        if (generation == m_artGeneration && (!image.isNull() || albumKey() != m_artAlbum)) {
+            m_art = image; m_artAlbum = albumKey();
             emit artworkChanged();
             setRingColors(m_art);
         }

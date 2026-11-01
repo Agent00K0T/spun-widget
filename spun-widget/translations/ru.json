@@ -10,10 +10,12 @@
   "settings.progress_color.description": "Кольцо по краю пластинки, показывающее, сколько уже сыграно.",
   "settings.chapters.label": "Главы YouTube",
   "settings.chapters.description": "Кольца глав на пластинке и прилипание иглы к ним. Если выключить, проигрыватель не обращается к YouTube.",
-  "settings.player.label": "Только плеер",
-  "settings.player.description": "Часть имени плеера, например firefox или vlc. Пусто — любой активный плеер.",
   "settings.swap_animation.label": "Анимация смены пластинки",
-  "settings.swap_animation.description": "Старая пластинка уезжает, новая въезжает, когда меняется альбом или видео.",
+  "settings.swap_animation.description": "Старая пластинка уезжает, новая въезжает, когда меняется альбом или видео. При переходе на трек того же альбома пластинка поднимается и переворачивается.",
   "settings.player_color.label": "Цвет проигрывателя",
-  "settings.player_color.description": "Корпус проигрывателя, основание и подставка иглы."
+  "settings.player_color.description": "Корпус проигрывателя, основание и подставка иглы.",
+  "settings.players.label": "Только плееры",
+  "settings.players.description": "Части имён плееров, например firefox или vlc (имена показывает команда playerctl -l). Пусто — любой плеер.",
+  "settings.ignored_players.label": "Игнорировать плееры",
+  "settings.ignored_players.description": "Плееры, которые виджет никогда не показывает, даже если они подходят под «Только плееры»."
 }

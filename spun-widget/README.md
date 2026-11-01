@@ -12,7 +12,7 @@ itself is the separate `spun-widget` program from the repository above: install 
 editor and place its frame. The turntable fills the frame and follows it.
 
 Settings: colours of the player, the record, the chapter rings and the progress ring (default,
-system or cover colours), YouTube chapters on/off, only one player, record swap animation.
+system or cover colours), YouTube chapters on/off, only some players and ignored players, record swap animation.
 
 License: PolyForm Noncommercial 1.0.0 (a derivative of
 [Spun](https://github.com/yappologistic/Spun) by yappologistic).

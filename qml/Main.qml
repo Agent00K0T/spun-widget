@@ -22,7 +22,9 @@ ApplicationWindow {
     readonly property string progressColor: widgetSettings.progress_color || "system"
     readonly property bool swapAnimation: widgetSettings.swap_animation !== false
     Binding { target: activePlayer; property: "chaptersEnabled"; value: root.widgetSettings.chapters !== false }
-    Binding { target: activePlayer; property: "playerFilter"; value: root.widgetSettings.player || "" }
+    // "player" (a single name) is the setting's older form
+    Binding { target: activePlayer; property: "onlyPlayers"; value: root.widgetSettings.players || (root.widgetSettings.player ? [root.widgetSettings.player] : []) }
+    Binding { target: activePlayer; property: "ignoredPlayers"; value: root.widgetSettings.ignored_players || [] }
     // Colour modes: "default" = the player's own colours (Spun's built-in palette, black vinyl),
     // "system" = Noctalia's theme, "cover" = the colours of the track's cover
     readonly property color standardAccent: "#b8c4cf"
@@ -30,7 +32,7 @@ ApplicationWindow {
     readonly property real uiScale: widgetScale
     width: Math.round(530 * uiScale); height: Math.round(530 * uiScale)
     onUiScaleChanged: fitOverlay()
-    Component.onCompleted: { fitOverlay(); ringProgress = recordVisualProgress; Qt.callLater(presentDisc) }
+    Component.onCompleted: { fitOverlay(); ringProgress = recordVisualProgress; noteTrack(); Qt.callLater(presentDisc) }
     // Popups share the logical scene; their overlay must use the same scale.
     function fitOverlay() {
         Overlay.overlay.transformOrigin = Item.TopLeft
@@ -131,7 +133,8 @@ ApplicationWindow {
         }
     }
 
-    // Record swap: a new album (or video) slides the old record out, its sleeve in, then the new record
+    // Record swap: a new record (another album, a video, a track without an album) slides the old
+    // record out, its sleeve in, then the new record
     property real lidOpen: 0
     property real packageOpacity: 0
     property real swapOffset: 0
@@ -147,16 +150,54 @@ ApplicationWindow {
     Behavior on progressAccent { enabled: root.animate; ColorAnimation { duration: 500 } }
     Behavior on ringOuter { enabled: root.animate; ColorAnimation { duration: 500 } }
     Behavior on ringInner { enabled: root.animate; ColorAnimation { duration: 500 } }
-    readonly property bool swapRunning: animate && discSwap.running
+    readonly property bool swapRunning: animate && (discSwap.running || discFlip.running)
     function resetSwap() { swapOffset = 0; outgoingOffset = 0; outgoingOpacity = 0; incomingOpacity = 1; lidOpen = 0; packageOpacity = 0 }
     function presentDisc() {
         presentation.present(player.artwork, player.count ? player.albumKey : "", animate && swapAnimation && visible && windowState.exposed)
     }
-    onAnimateChanged: if (!animate) { discSwap.stop(); resetSwap(); presentation.releaseOutgoing() }
+    onAnimateChanged: if (!animate) { discSwap.stop(); resetSwap(); presentation.releaseOutgoing(); discFlip.stop(); resetFlip() }
     Connections {
         target: root.player
-        function onTrackChanged() { scrubber.cancelScrub(); Qt.callLater(root.presentDisc) }
-        function onArtworkChanged() { Qt.callLater(root.presentDisc) }
+        function onTrackChanged() { scrubber.cancelScrub(); trackSettle.restart() }
+        function onArtworkChanged() { if (!trackSettle.running) Qt.callLater(root.presentDisc) }
+    }
+
+    // Record flip: the next track from the same album (played on or switched to) turns the record
+    // over. The arm goes to the rest, the lid strip and spindle lift away like in a swap, the record
+    // lifts off the platter, turns over to its other side and lands again, then the spindle comes
+    // back and the arm returns to the groove.
+    property real flipLift: 0
+    property real flipAngle: 0
+    readonly property bool flipping: animate && discFlip.running
+    // The track on the record and its album
+    property string knownTrack: ""
+    property string knownAlbum: ""
+    function noteTrack() {
+        const track = player.count ? player.songKey : ""
+        const sameAlbum = track !== "" && knownTrack !== "" && track !== knownTrack && player.albumId !== "" && player.albumId === knownAlbum
+        knownTrack = track; knownAlbum = track ? player.albumId : ""
+        if (sameAlbum) flipDisc()
+    }
+    // Browsers drop the track (or its album) for a moment between two tracks, and the widget may
+    // even follow another player meanwhile, so the track is taken once it has stayed for a while
+    Timer { id: trackSettle; interval: 300; onTriggered: { root.noteTrack(); root.presentDisc() } }
+    function resetFlip() { flipLift = 0; flipAngle = 0; lidOpen = 0 }
+    function flipDisc() {
+        // A record that is still being swapped in is not turned over
+        if (!animate || !swapAnimation || !visible || !windowState.exposed || discSwap.running) return
+        scrubber.cancelScrub(); discFlip.stop(); resetFlip()
+        discFlip.start()
+    }
+    SequentialAnimation {
+        id: discFlip
+        // The arm leaves the record first (its swing to the rest takes 900 ms)
+        PauseAnimation { duration: 750 }
+        NumberAnimation { target: root; property: "lidOpen"; to: 1; duration: Style.exit }
+        NumberAnimation { target: root; property: "flipLift"; to: 1; duration: Style.hero; easing.type: Easing.BezierSpline; easing.bezierCurve: Style.standardCurve }
+        NumberAnimation { target: root; property: "flipAngle"; to: 180; duration: 800; easing.type: Easing.InOutCubic }
+        NumberAnimation { target: root; property: "flipLift"; to: 0; duration: Style.hero; easing.type: Easing.BezierSpline; easing.bezierCurve: Style.standardCurve }
+        NumberAnimation { target: root; property: "lidOpen"; to: 0; duration: Style.exit }
+        onFinished: root.resetFlip()
     }
 
     // Record spin (33⅓ rpm) and the wave of the progress ring, on Qt's frame clock
@@ -167,7 +208,8 @@ ApplicationWindow {
         running: root.animate && root.visible && windowState.exposed && (root.player.playing || root.spinSpeed > .02)
         onTriggered: {
             const dt = Math.min(.05, frameTime)
-            root.spinSpeed += ((root.player.playing ? 200 : 0) - root.spinSpeed) * Math.min(1, dt * 2.2)
+            // A record lifted for the flip stops quickly; back on the platter it spins up again
+            root.spinSpeed += ((root.player.playing && !root.flipping ? 200 : 0) - root.spinSpeed) * Math.min(1, dt * (root.flipping ? 4 : 2.2))
             root.spinAngle = (root.spinAngle + root.spinSpeed * dt) % 360
             if (root.player.playing) {
                 root.wavePhase = (root.wavePhase + dt * 2.8) % (2 * Math.PI)
@@ -206,6 +248,15 @@ ApplicationWindow {
                 color: "transparent"; border.width: 8; border.color: "#05000000"
             }
         }
+        // The lifted record's shadow: it moves out and narrows with the record as it turns
+        Rectangle {
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: 4 + 10 * root.flipLift
+            width: 410; height: 410; radius: 205
+            visible: root.flipLift > 0
+            color: "#000000"; opacity: .3 * root.flipLift
+            transform: Scale { origin.x: 205; xScale: Math.max(.03, Math.abs(Math.cos(root.flipAngle * Math.PI / 180))) }
+        }
         Loader {
             anchors.centerIn: parent; width: 410; height: 410
             active: root.outgoingOpacity > 0
@@ -232,7 +283,17 @@ ApplicationWindow {
         Item {
             anchors.centerIn: parent; width: 410; height: 410
             opacity: root.incomingOpacity
-            transform: Translate { x: root.swapOffset }
+            scale: 1 + .05 * root.flipLift
+            // Past edge-on the other side faces up, so the turn continues from -90° and the label
+            // is not mirrored
+            transform: [
+                Translate { x: root.swapOffset; y: -6 * root.flipLift },
+                Rotation {
+                    origin.x: 205; origin.y: 205
+                    axis { x: 0; y: 1; z: 0 }
+                    angle: root.flipAngle > 90 ? root.flipAngle - 180 : root.flipAngle
+                }
+            ]
             enabled: !root.swapRunning
             Disc { anchors.fill: parent; artwork: presentation.artwork; rotation: root.spinAngle; tintFromArt: root.recordColor === "cover"; tint: root.recordColor === "system" ? root.accent : "transparent" }
             // YouTube chapters below the lighting overlay, so the record's sheen passes over them
@@ -268,7 +329,7 @@ ApplicationWindow {
             function onSwapRequested() {
                 // The presenter has already installed the new outgoing image.
                 // Stop the old sequence without releasing that new image.
-                discSwap.stop(); root.resetSwap()
+                discFlip.stop(); root.resetFlip(); discSwap.stop(); root.resetSwap()
                 if (!root.animate || !root.visible || !windowState.exposed) { presentation.releaseOutgoing(); return }
                 scrubber.cancelScrub(); root.outgoingAngle = root.spinAngle; root.outgoingRings = root.player.previousRings
                 root.swapOffset = 440; root.outgoingOffset = 0; root.outgoingOpacity = 1; root.incomingOpacity = 0
@@ -293,14 +354,16 @@ ApplicationWindow {
         }
         ProgressRing {
             anchors.fill: parent
-            visible: root.player.count > 0
+            visible: root.player.count > 0 && opacity > 0
+            // The ring lies on the record's rim: it goes while the record is lifted and turned over
+            opacity: 1 - root.flipLift
             progress: root.ringProgress
             phase: root.wavePhase
             amplitude: root.player.playing ? 2.8 : 0
             accent: root.progressAccent
             Behavior on amplitude { NumberAnimation { duration: Style.enter } }
         }
-        // The rim: drag along it to seek (Shift for precision); the wheel over the record sets the volume
+        // The rim: drag along it to seek (Shift for precision)
         MouseArea {
             id: scrubber
             preventStealing: true
@@ -340,7 +403,6 @@ ApplicationWindow {
                 scrubbing=false
             }
             onCanceled: cancelScrub()
-            onWheel: wheel => { root.player.volume = Math.max(0, Math.min(1, root.player.volume + wheel.angleDelta.y/2400)); wheel.accepted=true }
         }
     }
     // The arm, above the record and the seek ring, in platter coordinates but not clipped by it:

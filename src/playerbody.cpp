@@ -87,5 +87,4 @@ void PlayerBody::paint(QPainter *p) {
     for(int r:{185,188,191})for(int i=0;i<120;++i){p->save();p->translate(220,220);p->rotate(i*3+(r%2)*1.5);p->setPen(Qt::NoPen);p->setBrush(QColor(185,192,193,r==188?100:50));p->drawEllipse(QPointF(0,-r),.7,1.05);p->restore();}
     p->setPen(QPen(QColor(221,231,236,42),.8));p->setBrush(Qt::NoBrush);p->drawEllipse(QPointF(220,220),193,193);
     screw(QPointF(20,20));screw(QPointF(420,20));screw(QPointF(20,420));screw(QPointF(420,420));
-    metal(QRectF(37,391,34,8),4);metal(QRectF(365,31,25,11),3);
 }

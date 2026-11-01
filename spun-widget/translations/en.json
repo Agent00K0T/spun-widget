@@ -10,10 +10,12 @@
   "settings.progress_color.description": "The ring around the record that shows how much has played.",
   "settings.chapters.label": "YouTube chapters",
   "settings.chapters.description": "Chapter rings on the record and needle snapping to them. When off, the player never contacts YouTube.",
-  "settings.player.label": "Only player",
-  "settings.player.description": "Part of the player's name, such as firefox or vlc. Empty means any active player.",
   "settings.swap_animation.label": "Record swap animation",
-  "settings.swap_animation.description": "The old record slides out and the new one slides in when the album or video changes.",
+  "settings.swap_animation.description": "The old record slides out and the new one slides in when the album or video changes. On a move to a track from the same album the record lifts and turns over.",
   "settings.player_color.label": "Player color",
-  "settings.player_color.description": "The turntable's body, the arm base and rest."
+  "settings.player_color.description": "The turntable's body, the arm base and rest.",
+  "settings.players.label": "Only players",
+  "settings.players.description": "Parts of player names, such as firefox or vlc (playerctl -l lists them). Empty means any player.",
+  "settings.ignored_players.label": "Ignored players",
+  "settings.ignored_players.description": "Players the widget never shows, even when they match Only players."
 }

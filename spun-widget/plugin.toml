@@ -2,7 +2,7 @@
 # program (built from this repository); it reads this widget's position, size and settings.
 id          = "agent00k0t/spun-widget"
 name        = "Spun Widget"
-version     = "1.0.0"
+version     = "1.1.0"
 plugin_api  = 3
 author      = "Agent00K0T"
 license     = "PolyForm-Noncommercial-1.0.0"
@@ -69,12 +69,20 @@ entry = "anchor.luau"
   description_key = "settings.chapters.description"
   default   = true
 
+  # Players by part of their MPRIS name (as `playerctl -l` lists them); "ignored" wins
   [[desktop_widget.setting]]
-  key       = "player"
-  type      = "string"
-  label_key = "settings.player.label"
-  description_key = "settings.player.description"
-  default   = ""
+  key       = "players"
+  type      = "string_list"
+  label_key = "settings.players.label"
+  description_key = "settings.players.description"
+  default   = []
+
+  [[desktop_widget.setting]]
+  key       = "ignored_players"
+  type      = "string_list"
+  label_key = "settings.ignored_players.label"
+  description_key = "settings.ignored_players.description"
+  default   = []
 
   [[desktop_widget.setting]]
   key       = "swap_animation"

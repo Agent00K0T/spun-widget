@@ -43,7 +43,9 @@ Item {
     // The needle moved by at least 1° since the press: a drag, not a click. Only then the ring
     // previews the needle position (at the rest that would be 0 and the ring would vanish)
     property bool moved: false
-    readonly property bool previewing: dragging && moved
+    // No track at all: the needle can still be played with and swings back to the rest on release
+    readonly property bool idle: app.player.count === 0
+    readonly property bool previewing: dragging && moved && !idle
     // Dragged past the last groove onto the label means "next track"
     readonly property bool overLabel: dragging && rawAngle > startAngle + angleRange + 4
     // On the lead-in (from the record's edge to the first groove) the track starts from the
@@ -103,7 +105,9 @@ Item {
     }
     function dropNeedle() {
         if (!dragging) return
-        following = false; app.easeRing()
+        following = false
+        if (idle) { dragging = false; stuckFraction = -1; parkedAngle = NaN; return }
+        app.easeRing()
         const valid = canSeek && dragTrack === app.player.trackKey && rawAngle >= app.needleEdge && rawAngle <= startAngle+angleRange+2 && pointerDistance > armLength*.6 && pointerDistance < armLength*1.5
         const position = previewProgress
         if (!moved) {
@@ -263,8 +267,9 @@ Item {
     MouseArea {
         id: needleHit
         anchors.fill: parent
-        // Clickable even before the length is known (a click resumes playback)
-        enabled: arm.canSeek || arm.app.player.count > 0
+        // Always draggable: before the length is known a click resumes playback, without a track
+        // the needle is just moved about and returns to the rest
+        enabled: arm.visible
         hoverEnabled: true; preventStealing: true
         acceptedButtons: Qt.LeftButton
         property bool hintDismissed: false
