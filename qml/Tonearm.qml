@@ -312,6 +312,5 @@ Item {
         }
         onReleased: { hintDismissed = true; arm.dropNeedle() }
         onCanceled: { hintDismissed = true; arm.cancelDrag(true) }
-        onWheel: wheel => { wheel.accepted = false }
     }
 }
